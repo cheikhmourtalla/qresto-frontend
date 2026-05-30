@@ -74,7 +74,7 @@ export default function Orders() {
         <div>
           <h1 className="text-4xl font-black text-white tracking-tight">Commandes</h1>
           <p className="text-slate-500 uppercase text-xs tracking-widest mt-1">
-            Temps réel — rafraîchissement auto toutes les 15s
+            Temps réel — rafraîchissement auto toutes les 20s
           </p>
         </div>
         <button
