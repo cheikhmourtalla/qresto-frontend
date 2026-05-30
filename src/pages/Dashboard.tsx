@@ -1,29 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   LayoutGrid, Package, QrCode, Store,
-  BellRing, ChefHat, Receipt, Clock3, CheckCircle2,
+  TrendingUp, Receipt, Users, ChefHat,
 } from "lucide-react";
 import api from "../services/api";
-
-interface WaiterCall {
-  id: number;
-  tableNumber: string;
-  type: "WAITER" | "BILL";
-  createdAt: string;
-}
 
 export default function Dashboard() {
   const user = JSON.parse(localStorage.getItem("qresto_user") || "{}");
 
   const [stats, setStats] = useState({ categories: 0, products: 0, restaurants: 0 });
   const [restaurantLogo, setRestaurantLogo] = useState<string>("");
-  const [restaurantId, setRestaurantId] = useState<number | null>(null);
-  const [waiterCalls, setWaiterCalls] = useState<WaiterCall[]>([]);
-  const [loadingCalls, setLoadingCalls] = useState(false);
-  const [processingId, setProcessingId] = useState<number | null>(null);
-
-  // Ref pour suivre le dernier ID sans causer de re-render
-  const lastCallIdRef = useRef<number | null>(null);
+  const [servedOrders, setServedOrders] = useState<any[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
 
   // ── DASHBOARD DATA ──
   const loadDashboardData = async () => {
@@ -38,12 +26,9 @@ export default function Dashboard() {
           api.get("/products"),
           api.get("/restaurants/me"),
         ]);
-
         categoriesCount = Array.isArray(cat.data) ? cat.data.length : 0;
         productsCount = Array.isArray(prod.data) ? prod.data.length : 0;
-
         if (res.data?.logo) setRestaurantLogo(res.data.logo);
-        if (res.data?.id) setRestaurantId(res.data.id);
       } catch (e) {
         console.error("Erreur chargement dashboard:", e);
       }
@@ -61,71 +46,55 @@ export default function Dashboard() {
     setStats({ categories: categoriesCount, products: productsCount, restaurants: restCount });
   };
 
-  // ── LOAD WAITER CALLS ──
-  const loadWaiterCalls = async (id: number) => {
+  // ── LOAD SERVED ORDERS ──
+  const loadServedOrders = async () => {
     try {
-      setLoadingCalls(true);
-      const res = await api.get(`/waiter-call/${id}`);
-      const calls = Array.isArray(res.data) ? res.data : [];
+      setLoadingOrders(true);
+      const res = await api.get("/orders");
+      const allOrders = Array.isArray(res.data) ? res.data : [];
 
-      // Notification sonore si nouvelle demande
-      if (
-        calls.length > 0 &&
-        lastCallIdRef.current !== null &&
-        calls[0].id !== lastCallIdRef.current
-      ) {
-        const audio = new Audio("/sounds/notification.mp3");
-        audio.play().catch(() => {}); // Silencieux si bloqué par le navigateur
-      }
+      // Filtre uniquement les commandes SERVED du jour
+      const today = new Date().toDateString();
+      const todayServed = allOrders.filter((o: any) => {
+        const orderDate = new Date(o.createdAt).toDateString();
+        return o.status === "SERVED" && orderDate === today;
+      });
 
-      if (calls.length > 0) {
-        lastCallIdRef.current = calls[0].id;
-      }
-
-      setWaiterCalls(calls);
-    } catch (err) {
-      console.error("Erreur waiter calls:", err);
+      setServedOrders(todayServed);
+    } catch (e) {
+      console.error("Erreur chargement commandes:", e);
     } finally {
-      setLoadingCalls(false);
+      setLoadingOrders(false);
     }
   };
 
-  // ── COMPLETE CALL ──
-  const completeCall = async (id: number) => {
-    try {
-      setProcessingId(id);
-      await api.patch(`/waiter-call/${id}/complete`);
-      setWaiterCalls(prev => prev.filter(call => call.id !== id));
-    } catch (err) {
-      console.error("Erreur traitement demande:", err);
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
-  // ── INITIAL LOAD ──
   useEffect(() => {
     loadDashboardData();
   }, []);
 
-  // ── AUTO REFRESH — se lance dès que restaurantId est disponible ──
   useEffect(() => {
-    if (!restaurantId) return;
+    if (user.role === "RESTAURANT_ADMIN" || user.role === "EMPLOYEE") {
+      loadServedOrders();
+      const interval = setInterval(loadServedOrders, 30000);
+      return () => clearInterval(interval);
+    }
+  }, []);
 
-    // Premier chargement immédiat
-    loadWaiterCalls(restaurantId);
+  // ── CALCULS CAISSE ──
+  const totalRecettes = useMemo(() => {
+    return servedOrders.reduce((sum, order) => {
+      const orderTotal = order.items.reduce(
+        (s: number, item: any) => s + item.price * item.quantity, 0
+      );
+      return sum + orderTotal;
+    }, 0);
+  }, [servedOrders]);
 
-    // Puis toutes les 5 secondes
-    const interval = setInterval(() => {
-      loadWaiterCalls(restaurantId);
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [restaurantId]); // ← uniquement restaurantId, pas lastCallId
-
-  // ── STATS ──
-  const waiterCount = useMemo(() => waiterCalls.filter(c => c.type === "WAITER").length, [waiterCalls]);
-  const billCount = useMemo(() => waiterCalls.filter(c => c.type === "BILL").length, [waiterCalls]);
+  const totalPlats = useMemo(() => {
+    return servedOrders.reduce((sum, order) => {
+      return sum + order.items.reduce((s: number, item: any) => s + item.quantity, 0);
+    }, 0);
+  }, [servedOrders]);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#020617] p-4 text-slate-100 md:p-8">
@@ -150,22 +119,8 @@ export default function Dashboard() {
 
         {/* HEADER */}
         <header className="mb-10">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-4xl font-black tracking-tight text-white">Tableau de bord</h1>
-              <p className="mt-2 text-sm uppercase tracking-widest text-slate-400">Aperçu de votre activité</p>
-            </div>
-
-            {(user.role === "RESTAURANT_ADMIN" || user.role === "EMPLOYEE") && (
-              <div className="inline-flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-4">
-                <div className="h-3 w-3 animate-pulse rounded-full bg-emerald-400" />
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-400">Service actif</p>
-                  <p className="text-sm text-slate-300">Les appels clients sont surveillés en direct</p>
-                </div>
-              </div>
-            )}
-          </div>
+          <h1 className="text-4xl font-black tracking-tight text-white">Tableau de bord</h1>
+          <p className="mt-2 text-sm uppercase tracking-widest text-slate-400">Aperçu de votre activité</p>
         </header>
 
         {/* STATS GRID */}
@@ -177,10 +132,7 @@ export default function Dashboard() {
             { label: "Menu de statut",val: "Actif",           icon: QrCode,     color: "text-purple-500", hide: user.role === "SUPER_ADMIN" },
           ].map((item, i) =>
             !item.hide && (
-              <div
-                key={i}
-                className="group relative overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/40 p-6 backdrop-blur-xl transition-all hover:border-amber-500/50"
-              >
+              <div key={i} className="group relative overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/40 p-6 backdrop-blur-xl transition-all hover:border-amber-500/50">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{item.label}</p>
@@ -198,111 +150,121 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* WAITER CALLS */}
+        {/* CAISSE DU JOUR */}
         {(user.role === "RESTAURANT_ADMIN" || user.role === "EMPLOYEE") && (
           <div className="mt-12">
 
-            {/* HEADER */}
+            {/* HEADER CAISSE */}
             <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="flex items-center gap-3 text-3xl font-black text-white">
-                  <BellRing className="text-amber-500" />
-                  Assistance clients
+                  <TrendingUp className="text-amber-500" />
+                  Caisse du jour
                 </h2>
-                <p className="mt-2 text-slate-400">Demandes envoyées depuis les tables</p>
+                <p className="mt-2 text-slate-400">
+                  {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                </p>
+              </div>
+              <button
+                onClick={loadServedOrders}
+                className="flex items-center gap-2 rounded-xl bg-slate-800 px-5 py-3 text-sm font-bold text-slate-300 hover:bg-slate-700 transition-colors"
+              >
+                Actualiser
+              </button>
+            </div>
+
+            {/* RÉSUMÉ */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-8">
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <TrendingUp className="text-emerald-400" size={20} />
+                  <p className="text-xs font-bold uppercase tracking-widest text-emerald-400">Recettes totales</p>
+                </div>
+                <h3 className="text-3xl font-black text-white">{totalRecettes.toLocaleString()} <span className="text-lg text-slate-400">FCFA</span></h3>
               </div>
 
-              {/* COUNTERS */}
-              <div className="flex flex-wrap gap-4">
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <ChefHat className="text-amber-500" />
-                    <div>
-                      <p className="text-xs uppercase tracking-widest text-slate-500">Serveur</p>
-                      <h3 className="text-2xl font-black text-white">{waiterCount}</h3>
-                    </div>
-                  </div>
+              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <Receipt className="text-amber-400" size={20} />
+                  <p className="text-xs font-bold uppercase tracking-widest text-amber-400">Commandes servies</p>
                 </div>
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <Receipt className="text-emerald-500" />
-                    <div>
-                      <p className="text-xs uppercase tracking-widest text-slate-500">Additions</p>
-                      <h3 className="text-2xl font-black text-white">{billCount}</h3>
-                    </div>
-                  </div>
+                <h3 className="text-3xl font-black text-white">{servedOrders.length}</h3>
+              </div>
+
+              <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <ChefHat className="text-blue-400" size={20} />
+                  <p className="text-xs font-bold uppercase tracking-widest text-blue-400">Plats servis</p>
                 </div>
+                <h3 className="text-3xl font-black text-white">{totalPlats}</h3>
               </div>
             </div>
 
-            {/* CALLS LIST */}
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {loadingCalls && waiterCalls.length === 0 ? (
-                <div className="rounded-3xl border border-slate-800 bg-slate-900/40 p-8">
-                  <p className="text-slate-400">Chargement des demandes...</p>
+            {/* DÉTAIL PAR COMMANDE */}
+            {loadingOrders ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="h-8 w-8 rounded-full border-2 border-amber-500 border-t-transparent animate-spin" />
+              </div>
+            ) : servedOrders.length === 0 ? (
+              <div className="rounded-3xl border-2 border-dashed border-slate-800 p-12 text-center">
+                <TrendingUp size={48} className="mx-auto text-slate-700 mb-4" />
+                <h3 className="text-xl font-black text-white">Aucune vente aujourd'hui</h3>
+                <p className="mt-2 text-slate-500">Les commandes servies apparaîtront ici</p>
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/40">
+                {/* EN-TÊTE TABLEAU */}
+                <div className="grid grid-cols-4 gap-4 border-b border-slate-800 px-6 py-4">
+                  <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Table</span>
+                  <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Plats</span>
+                  <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Heure</span>
+                  <span className="text-xs font-bold uppercase tracking-widest text-slate-500 text-right">Total</span>
                 </div>
-              ) : waiterCalls.length === 0 ? (
-                <div className="rounded-3xl border border-slate-800 bg-slate-900/40 p-10 text-center">
-                  <BellRing size={50} className="mx-auto text-slate-700" />
-                  <h3 className="mt-5 text-xl font-black text-white">Aucune demande</h3>
-                  <p className="mt-2 text-slate-500">Les appels clients apparaîtront ici</p>
-                </div>
-              ) : (
-                waiterCalls.map((call, index) => (
-                  <div
-                    key={call.id}
-                    className={`group relative overflow-hidden rounded-3xl border bg-slate-900/50 p-6 backdrop-blur-xl transition-all ${
-                      index === 0
-                        ? "animate-pulse border-amber-500/60"
-                        : "border-slate-800 hover:border-amber-500/30"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="inline-flex rounded-full border border-amber-500/20 bg-amber-500/10 px-4 py-2 text-xs font-black uppercase tracking-widest text-amber-400">
-                          Table {call.tableNumber}
+
+                {/* LIGNES */}
+                <div className="divide-y divide-slate-800/50">
+                  {servedOrders.map((order) => {
+                    const orderTotal = order.items.reduce(
+                      (s: number, item: any) => s + item.price * item.quantity, 0
+                    );
+                    const orderPlats = order.items.reduce(
+                      (s: number, item: any) => s + item.quantity, 0
+                    );
+                    return (
+                      <div key={order.id} className="grid grid-cols-4 gap-4 px-6 py-4 hover:bg-slate-800/30 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 font-black text-sm">
+                            {order.tableNumber}
+                          </div>
+                          <span className="text-sm font-bold text-white">Table {order.tableNumber}</span>
                         </div>
-                        <h3 className="mt-5 text-2xl font-black text-white">
-                          {call.type === "WAITER" ? "Appel serveur" : "Demande d'addition"}
-                        </h3>
+                        <div className="flex items-center gap-2">
+                          <Users size={14} className="text-slate-500" />
+                          <span className="text-sm text-slate-300">{orderPlats} plat{orderPlats > 1 ? "s" : ""}</span>
+                        </div>
+                        <div className="flex items-center text-sm text-slate-400">
+                          {new Date(order.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                        <div className="flex items-center justify-end">
+                          <span className="font-black text-emerald-400">{orderTotal.toLocaleString()} F</span>
+                        </div>
                       </div>
-                      <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${
-                        call.type === "WAITER"
-                          ? "bg-amber-500/10 text-amber-400"
-                          : "bg-emerald-500/10 text-emerald-400"
-                      }`}>
-                        {call.type === "WAITER" ? <ChefHat size={28} /> : <Receipt size={28} />}
-                      </div>
-                    </div>
+                    );
+                  })}
+                </div>
 
-                    <p className="mt-4 text-slate-400">
-                      {call.type === "WAITER"
-                        ? "Le client demande l'assistance d'un serveur."
-                        : "Le client souhaite recevoir l'addition."}
-                    </p>
-
-                    <div className="mt-6 flex items-center gap-2 text-sm text-slate-500">
-                      <Clock3 size={16} />
-                      {new Date(call.createdAt).toLocaleString()}
-                    </div>
-
-                    <button
-                      onClick={() => completeCall(call.id)}
-                      disabled={processingId === call.id}
-                      className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 font-bold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <CheckCircle2 size={18} />
-                      {processingId === call.id ? "Traitement..." : "Marquer comme traité"}
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
+                {/* TOTAL FINAL */}
+                <div className="grid grid-cols-4 gap-4 border-t border-slate-700 bg-slate-800/50 px-6 py-5">
+                  <span className="col-span-3 font-black text-white uppercase tracking-wider text-sm">Total du jour</span>
+                  <span className="text-right text-xl font-black text-emerald-400">{totalRecettes.toLocaleString()} FCFA</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* HERO */}
-        <div className="mt-12 overflow-hidden rounded-3xl bg-linear-to-br from-amber-600 to-orange-700 p-1">
+        <div className="mt-12 overflow-hidden rounded-3xl bg-gradient-to-br from-amber-600 to-orange-700 p-1">
           <div className="flex flex-col items-center justify-between gap-8 rounded-[calc(1.5rem-1px)] bg-[#020617]/90 p-8 backdrop-blur-md md:flex-row md:p-12">
             <div className="max-w-2xl text-center md:text-left">
               <h2 className="text-4xl font-black leading-tight text-white">
