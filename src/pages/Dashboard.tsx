@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+
+const ORDERS_PER_PAGE = 5;
 import {
   LayoutGrid, Package, QrCode, Store,
   TrendingUp, Receipt, Users, ChefHat,
-  ChevronLeft, ChevronRight, Calendar,
+  ChevronLeft, ChevronRight, Calendar, ChevronDown, ChevronUp,
 } from "lucide-react";
 import api from "../services/api";
 
@@ -65,6 +67,7 @@ export default function Dashboard() {
   const [allOrders, setAllOrders] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [selectedDay, setSelectedDay] = useState<string>(getTodayBusinessDay());
+  const [visibleCount, setVisibleCount] = useState<number>(ORDERS_PER_PAGE);
 
   // ── DASHBOARD DATA ──
   const loadDashboardData = async () => {
@@ -125,6 +128,10 @@ export default function Dashboard() {
       return () => clearInterval(interval);
     }
   }, []);
+
+  // ── COMMANDES DU JOUR SÉLECTIONNÉ ──
+  // Reset pagination when day changes
+  useEffect(() => { setVisibleCount(ORDERS_PER_PAGE); }, [selectedDay]);
 
   // ── COMMANDES DU JOUR SÉLECTIONNÉ ──
   const dayOrders = useMemo(() => {
@@ -314,7 +321,7 @@ export default function Dashboard() {
                 </div>
 
                 <div className="divide-y divide-slate-800/50">
-                  {dayOrders.map((order) => {
+                  {dayOrders.slice(0, visibleCount).map((order) => {
                     const orderTotal = order.items.reduce(
                       (s: number, item: any) => s + item.price * item.quantity, 0
                     );
@@ -343,6 +350,30 @@ export default function Dashboard() {
                     );
                   })}
                 </div>
+
+                {/* VOIR PLUS / VOIR MOINS */}
+                {dayOrders.length > ORDERS_PER_PAGE && (
+                  <div className="flex items-center justify-center gap-4 border-t border-slate-800 px-6 py-4 bg-slate-900/30">
+                    <span className="text-xs text-slate-500">
+                      {Math.min(visibleCount, dayOrders.length)} / {dayOrders.length} commandes
+                    </span>
+                    {visibleCount < dayOrders.length ? (
+                      <button
+                        onClick={() => setVisibleCount(v => v + ORDERS_PER_PAGE)}
+                        className="flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2 text-sm font-bold text-slate-300 hover:bg-slate-700 transition-colors"
+                      >
+                        <ChevronDown size={16} /> Voir plus
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setVisibleCount(ORDERS_PER_PAGE)}
+                        className="flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2 text-sm font-bold text-slate-300 hover:bg-slate-700 transition-colors"
+                      >
+                        <ChevronUp size={16} /> Voir moins
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-4 gap-4 border-t border-slate-700 bg-slate-800/50 px-6 py-5">
                   <span className="col-span-3 font-black text-white uppercase tracking-wider text-sm">Total du jour</span>
