@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
-import { ChefHat, Clock, CheckCircle, Trash2, RefreshCw, AlertCircle } from "lucide-react";
+import { ChefHat, Clock, CheckCircle, Trash2, RefreshCw, AlertCircle, Receipt } from "lucide-react";
 import api from "../services/api";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
-  PENDING:     { label: "En attente",     color: "text-amber-400 bg-amber-400/10 border-amber-400/20",      icon: Clock },
-  IN_PROGRESS: { label: "En préparation", color: "text-blue-400 bg-blue-400/10 border-blue-400/20",         icon: ChefHat },
-  SERVED:      { label: "Servie",         color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20", icon: CheckCircle },
+  PENDING:        { label: "En attente",     color: "text-amber-400 bg-amber-400/10 border-amber-400/20",      icon: Clock },
+  IN_PROGRESS:    { label: "En préparation", color: "text-blue-400 bg-blue-400/10 border-blue-400/20",         icon: ChefHat },
+  SERVED:         { label: "Servie",         color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20", icon: CheckCircle },
+  BILL_REQUESTED: { label: "Addition 🔔",    color: "text-red-400 bg-red-400/10 border-red-400/20",            icon: Receipt },
 };
 
 const NEXT_STATUS: Record<string, string> = {
-  PENDING:     "IN_PROGRESS",
-  IN_PROGRESS: "SERVED",
-  SERVED:      "SERVED",
+  PENDING:        "IN_PROGRESS",
+  IN_PROGRESS:    "SERVED",
+  SERVED:         "SERVED",
+  BILL_REQUESTED: "SERVED",
 };
 
 export default function Orders() {
@@ -62,10 +64,11 @@ export default function Orders() {
     : orders.filter(o => o.status === filter);
 
   const counts = {
-    ALL:         orders.length,
-    PENDING:     orders.filter(o => o.status === "PENDING").length,
-    IN_PROGRESS: orders.filter(o => o.status === "IN_PROGRESS").length,
-    SERVED:      orders.filter(o => o.status === "SERVED").length,
+    ALL:            orders.length,
+    PENDING:        orders.filter(o => o.status === "PENDING").length,
+    IN_PROGRESS:    orders.filter(o => o.status === "IN_PROGRESS").length,
+    BILL_REQUESTED: orders.filter(o => o.status === "BILL_REQUESTED").length,
+    SERVED:         orders.filter(o => o.status === "SERVED").length,
   };
 
   return (
@@ -88,10 +91,11 @@ export default function Orders() {
       {/* Filtres */}
       <div className="mb-8 flex flex-wrap gap-3">
         {[
-          { key: "ALL",         label: "Toutes" },
-          { key: "PENDING",     label: "En attente" },
-          { key: "IN_PROGRESS", label: "En préparation" },
-          { key: "SERVED",      label: "Servies" },
+          { key: "ALL",            label: "Toutes" },
+          { key: "PENDING",        label: "En attente" },
+          { key: "IN_PROGRESS",    label: "En préparation" },
+          { key: "BILL_REQUESTED", label: "Addition 🔔" },
+          { key: "SERVED",         label: "Servies" },
         ].map(f => (
           <button
             key={f.key}
@@ -130,7 +134,7 @@ export default function Orders() {
       {!loading && (
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
           {filteredOrders.map(order => {
-            const config = STATUS_CONFIG[order.status] || STATUS_CONFIG.PENDING;
+            const config = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.PENDING;
             const StatusIcon = config.icon;
             const nextStatus = NEXT_STATUS[order.status];
             const orderTotal = order.items.reduce(
@@ -141,7 +145,9 @@ export default function Orders() {
               <div
                 key={order.id}
                 className={`rounded-3xl bg-slate-900/50 border p-5 transition-all ${
-                  order.status === "PENDING"
+                  order.status === "BILL_REQUESTED"
+                    ? "border-red-500/40 shadow-lg shadow-red-500/10"
+                    : order.status === "PENDING"
                     ? "border-amber-500/30"
                     : "border-slate-800"
                 }`}
@@ -181,7 +187,7 @@ export default function Orders() {
                         <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-500/20 text-amber-500 text-xs font-black">
                           {item.quantity}
                         </span>
-                        <span className="text-sm text-slate-300">{item.product.name}</span>
+                        <span className="text-sm text-slate-300">{item.product?.name || "Produit"}</span>
                       </div>
                       <span className="text-sm font-bold text-white">
                         {(item.price * item.quantity).toLocaleString()} F
@@ -197,7 +203,14 @@ export default function Orders() {
                 </div>
 
                 {/* Bouton action */}
-                {order.status !== "SERVED" ? (
+                {order.status === "BILL_REQUESTED" ? (
+                  <button
+                    onClick={() => handleStatusUpdate(order.id, "SERVED")}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl py-3 font-bold bg-emerald-500 text-white hover:bg-emerald-400 transition-colors"
+                  >
+                    <CheckCircle size={18} /> Addition réglée — Marquer servie
+                  </button>
+                ) : order.status !== "SERVED" ? (
                   <button
                     onClick={() => handleStatusUpdate(order.id, nextStatus)}
                     className={`w-full flex items-center justify-center gap-2 rounded-xl py-3 font-bold transition-colors ${
