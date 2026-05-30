@@ -189,7 +189,7 @@ export default function Products() {
 
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-500 uppercase ml-1">Image</label>
-            <label className="flex items-center justify-center w-full h-[46px] rounded-xl bg-slate-800 border-2 border-dashed border-slate-700 cursor-pointer hover:border-amber-500/50 transition-all overflow-hidden">
+            <label className="flex items-center justify-center w-full h-46px rounded-xl bg-slate-800 border-2 border-dashed border-slate-700 cursor-pointer hover:border-amber-500/50 transition-all overflow-hidden">
               {imagePreview ? (
                 <img src={imagePreview} className="h-full w-full object-cover" alt="preview" />
               ) : (

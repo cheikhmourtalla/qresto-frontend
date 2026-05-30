@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
   MapPin,
-  Phone,
   ShoppingCart,
   Plus,
   Minus,
@@ -15,6 +14,8 @@ import {
   X,
   Menu,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import api from "../services/api";
@@ -39,6 +40,183 @@ interface ReceiptData {
 
 type AppState = "menu" | "order_confirmed";
 
+/* ── CAROUSEL COMPONENT ── */
+function HeroCarousel({ products, onSelect, cart, addToCart, removeFromCart }: {
+  products: any[];
+  onSelect: (p: any) => void;
+  cart: CartItem[];
+  addToCart: (p: any) => void;
+  removeFromCart: (id: number) => void;
+}) {
+  const [current, setCurrent] = useState(0);
+
+  // Auto-défilement toutes les 3.5 secondes
+  useEffect(() => {
+    if (products.length <= 1) return;
+    const timer = setInterval(() => {
+      setCurrent(prev => (prev + 1) % products.length);
+    }, 3500);
+    return () => clearInterval(timer);
+  }, [products.length]);
+
+  const prev = useCallback(() =>
+    setCurrent(c => (c - 1 + products.length) % products.length), [products.length]);
+  const next = useCallback(() =>
+    setCurrent(c => (c + 1) % products.length), [products.length]);
+
+  if (products.length === 0) return null;
+
+  const product = products[current];
+  const cartItem = cart.find(i => i.id === product.id);
+
+  return (
+    <div className="relative w-full overflow-hidden" style={{ height: "320px" }}>
+      {/* Images */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={current}
+          initial={{ opacity: 0, scale: 1.04 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.5 }}
+          className="absolute inset-0"
+        >
+          {product.image ? (
+            <img
+              src={product.image}
+              alt={product.name}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div
+              className="flex h-full w-full items-center justify-center text-8xl font-bold"
+              style={{ background: "linear-gradient(135deg, #2a1a08, #3d2510)" }}
+            >
+              {product.name.charAt(0)}
+            </div>
+          )}
+          {/* Gradient overlay */}
+          <div
+            className="absolute inset-0"
+            style={{ background: "linear-gradient(to top, rgba(26,16,8,1) 0%, rgba(26,16,8,0.5) 50%, rgba(26,16,8,0.1) 100%)" }}
+          />
+        </motion.div>
+      </AnimatePresence>
+
+      {/* Infos produit en bas */}
+      <div className="absolute bottom-0 left-0 right-0 px-5 pb-5 z-10">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={current}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.35 }}
+          >
+            <div className="flex items-end justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <p className="text-amber-500 font-bold text-sm mb-1">
+                  {product.price.toLocaleString()} FCFA
+                </p>
+                <h2
+                  className="text-xl font-bold text-white leading-tight line-clamp-1 cursor-pointer hover:text-amber-400 transition"
+                  onClick={() => onSelect(product)}
+                >
+                  {product.name}
+                </h2>
+                {product.description && (
+                  <p className="mt-1 text-xs text-stone-400 line-clamp-1">{product.description}</p>
+                )}
+              </div>
+
+              {/* Bouton panier */}
+              {cartItem ? (
+                <div
+                  className="flex items-center gap-2 rounded-xl p-1.5 shrink-0"
+                  style={{ background: "rgba(255,255,255,0.1)", backdropFilter: "blur(8px)" }}
+                >
+                  <button
+                    onClick={() => removeFromCart(product.id)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white"
+                    style={{ background: "rgba(255,255,255,0.1)" }}
+                  >
+                    <Minus size={14} />
+                  </button>
+                  <span className="w-5 text-center font-bold text-white text-sm">{cartItem.quantity}</span>
+                  <button
+                    onClick={() => addToCart(product)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-black"
+                    style={{ background: "#d97706" }}
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => addToCart(product)}
+                  className="flex items-center gap-2 rounded-xl px-4 py-2.5 font-bold text-black text-sm shrink-0 transition hover:opacity-90"
+                  style={{ background: "linear-gradient(135deg, #d97706, #b45309)" }}
+                >
+                  <Plus size={14} /> Ajouter
+                </button>
+              )}
+            </div>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* Boutons navigation */}
+      {products.length > 1 && (
+        <>
+          <button
+            onClick={prev}
+            className="absolute left-3 top-1/2 -translate-y-1/2 z-10 flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-90"
+            style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
+          >
+            <ChevronLeft size={20} className="text-white" />
+          </button>
+          <button
+            onClick={next}
+            className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-90"
+            style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
+          >
+            <ChevronRight size={20} className="text-white" />
+          </button>
+        </>
+      )}
+
+      {/* Indicateurs (points) */}
+      {products.length > 1 && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex gap-1.5">
+          {products.map((_: any, i: number) => (
+            <button
+              key={i}
+              onClick={() => setCurrent(i)}
+              className="rounded-full transition-all"
+              style={{
+                width: i === current ? "20px" : "6px",
+                height: "6px",
+                background: i === current ? "#d97706" : "rgba(255,255,255,0.3)",
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Compteur */}
+      {products.length > 1 && (
+        <div
+          className="absolute top-4 right-4 z-10 rounded-full px-2.5 py-1 text-xs font-bold text-white"
+          style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}
+        >
+          {current + 1} / {products.length}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── MAIN COMPONENT ── */
 export default function PublicMenu() {
   const { slug } = useParams();
   const [searchParams] = useSearchParams();
@@ -56,8 +234,6 @@ export default function PublicMenu() {
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [productQty, setProductQty] = useState(1);
-
-  
 
   useEffect(() => {
     api
@@ -82,16 +258,15 @@ export default function PublicMenu() {
     return (restaurant?.category ?? []).flatMap((c: any) => c.product ?? []);
   }, [restaurant]);
 
-  const heroProduct = useMemo(() => {
-    if (selectedCategory === "all") return allProducts[0] ?? null;
-    const cat = restaurant?.category?.find((c: any) => c.id === selectedCategory);
-    return cat?.product?.[0] ?? null;
-  }, [selectedCategory, allProducts, restaurant]);
+  // Produits avec image pour le carousel (max 8)
+  const carouselProducts = useMemo(() => {
+    return allProducts.filter((p: any) => p.image).slice(0, 8);
+  }, [allProducts]);
 
   const visibleProducts = useMemo(() => {
-    if (selectedCategory === "all") return allProducts.slice(1);
+    if (selectedCategory === "all") return allProducts;
     const cat = restaurant?.category?.find((c: any) => c.id === selectedCategory);
-    return (cat?.product ?? []).slice(1);
+    return cat?.product ?? [];
   }, [selectedCategory, allProducts, restaurant]);
 
   const addToCart = (product: any, qty = 1) => {
@@ -128,7 +303,7 @@ export default function PublicMenu() {
         restaurantId: restaurant.id,
         items: cart.map((i) => ({ productId: i.id, quantity: i.quantity, price: i.price })),
       });
-      const order = res.data;
+      const order = res.data.order || res.data;
       const receiptData: ReceiptData = {
         id: order?.id,
         orderNumber: order?.orderNumber || `CMD-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -155,9 +330,11 @@ export default function PublicMenu() {
   const handleServiceCall = async (type: "WAITER" | "BILL") => {
     try {
       setServiceLoading(true);
-      await api.post("/waiter-call", { tableNumber, restaurantId: restaurant.id, type });
+      if (type === "BILL" && receipt?.id) {
+        await api.patch(`/orders/${receipt.id}/bill`);
+      }
       setServiceModal(false);
-      alert(type === "WAITER" ? "Serveur appelé avec succès ✅" : "Demande d'addition envoyée ✅");
+      alert(type === "WAITER" ? "Serveur appelé ✅" : "Demande d'addition envoyée ✅");
     } catch (err) {
       console.error(err);
       alert("Erreur lors de l'envoi de la demande.");
@@ -257,7 +434,16 @@ export default function PublicMenu() {
               <button onClick={() => setServiceModal(true)} className="h-13 w-full rounded-xl py-3.5 font-bold text-black transition hover:opacity-90" style={{ background: "linear-gradient(135deg, #d97706, #b45309)" }}>
                 🛎️ Appeler le service
               </button>
-              <button onClick={() => { localStorage.removeItem(`qresto_app_state_${slug}`); localStorage.removeItem(`qresto_receipt_${slug}`); setReceipt(null); setAppState("menu"); }} className="h-13 w-full rounded-xl py-3.5 font-bold text-white transition hover:opacity-80" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
+              <button
+                onClick={() => {
+                  localStorage.removeItem(`qresto_app_state_${slug}`);
+                  localStorage.removeItem(`qresto_receipt_${slug}`);
+                  setReceipt(null);
+                  setAppState("menu");
+                }}
+                className="h-13 w-full rounded-xl py-3.5 font-bold text-white transition hover:opacity-80"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+              >
                 Retour au menu
               </button>
             </div>
@@ -277,8 +463,17 @@ export default function PublicMenu() {
   return (
     <div className="min-h-screen text-white pb-28" style={{ background: "#1a1008" }}>
 
+      {/* ── CAROUSEL EN HAUT ── */}
+      <HeroCarousel
+        products={carouselProducts.length > 0 ? carouselProducts : allProducts.slice(0, 8)}
+        onSelect={(p) => { setSelectedProduct(p); setProductQty(1); }}
+        cart={cart}
+        addToCart={addToCart}
+        removeFromCart={removeFromCart}
+      />
+
       {/* ── NAV ── */}
-      <nav className="sticky top-0 z-40 flex items-center justify-between px-6 py-4" style={{ background: "rgba(26,16,8,0.92)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <nav className="sticky top-0 z-40 flex items-center justify-between px-6 py-4" style={{ background: "rgba(26,16,8,0.95)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
         <div className="flex items-center gap-3">
           {restaurant.logo ? (
             <img src={restaurant.logo} alt="Logo" className="h-10 w-10 rounded-lg object-contain bg-white p-1" />
@@ -342,73 +537,6 @@ export default function PublicMenu() {
         </div>
       </div>
 
-      {/* ── HERO PRODUCT ── */}
-      {heroProduct && (
-        <div className="px-6 mb-6">
-          <motion.div
-            key={heroProduct.id}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="relative overflow-hidden rounded-2xl cursor-pointer"
-            style={{ background: "#221508", border: "1px solid rgba(255,255,255,0.07)" }}
-            onClick={() => { setSelectedProduct(heroProduct); setProductQty(1); }}
-          >
-            <div className="flex flex-col md:flex-row">
-              {/* IMAGE */}
-              <div className="relative md:w-1/2 h-64 md:h-80 overflow-hidden flex-shrink-0">
-                {heroProduct.image ? (
-                  <img src={heroProduct.image} alt={heroProduct.name} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full items-center justify-center text-6xl font-bold text-stone-700" style={{ background: "#2a1a08" }}>
-                    {heroProduct.name.charAt(0)}
-                  </div>
-                )}
-                <div className="absolute inset-0" style={{ background: "linear-gradient(to right, transparent 60%, rgba(34,21,8,1) 100%)" }} />
-              </div>
-
-              {/* INFO */}
-              <div className="p-6 flex flex-col justify-between md:flex-1">
-                <div>
-                  <p className="text-amber-500 font-bold text-lg mb-2">{heroProduct.price.toLocaleString()} FCFA</p>
-                  <h2 className="text-2xl font-bold text-white leading-tight mb-3">{heroProduct.name}</h2>
-                  {heroProduct.description && (
-                    <p className="text-stone-400 text-sm leading-relaxed line-clamp-4">{heroProduct.description}</p>
-                  )}
-                </div>
-
-                <div className="mt-5 flex items-center justify-between gap-3">
-                  {(() => {
-                    const cartItem = cart.find((i) => i.id === heroProduct.id);
-                    return cartItem ? (
-                      <div className="flex items-center gap-3 rounded-xl p-1.5" style={{ background: "rgba(255,255,255,0.07)" }}>
-                        <button onClick={(e) => { e.stopPropagation(); removeFromCart(heroProduct.id); }} className="flex h-9 w-9 items-center justify-center rounded-lg text-white transition" style={{ background: "rgba(255,255,255,0.08)" }}>
-                          <Minus size={16} />
-                        </button>
-                        <span className="w-6 text-center font-bold text-white">{cartItem.quantity}</span>
-                        <button onClick={(e) => { e.stopPropagation(); addToCart(heroProduct); }} className="flex h-9 w-9 items-center justify-center rounded-lg text-black" style={{ background: "#d97706" }}>
-                          <Plus size={16} />
-                        </button>
-                      </div>
-                    ) : (
-                      <button onClick={(e) => { e.stopPropagation(); addToCart(heroProduct); }} className="flex items-center gap-2 rounded-xl px-5 py-2.5 font-bold text-black text-sm transition hover:opacity-90" style={{ background: "linear-gradient(135deg, #d97706, #b45309)", border: "none" }}>
-                        <Plus size={15} />
-                        Ajouter au panier
-                      </button>
-                    );
-                  })()}
-                  <button
-                    onClick={() => { setSelectedProduct(heroProduct); setProductQty(1); }}
-                    className="text-xs text-stone-400 hover:text-white transition underline underline-offset-2"
-                  >
-                    Voir la description détaillée
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
       {/* ── PRODUCT LIST ── */}
       <div className="px-6">
         {visibleProducts.length > 0 && (
@@ -425,7 +553,7 @@ export default function PublicMenu() {
                   style={{ background: "#221508", border: "1px solid rgba(255,255,255,0.06)" }}
                 >
                   {/* IMAGE */}
-                  <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg" style={{ background: "#2a1a08" }}>
+                  <div className="h-20 w-20 shrink-0 overflow-hidden rounded-lg" style={{ background: "#2a1a08" }}>
                     {product.image ? (
                       <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
                     ) : (
@@ -444,7 +572,7 @@ export default function PublicMenu() {
                   </div>
 
                   {/* PRIX + ACTION */}
-                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                  <div className="flex flex-col items-end gap-2 shrink-0">
                     <p className="font-bold text-amber-500 text-sm whitespace-nowrap">{product.price.toLocaleString()} FCFA</p>
                     {cartItem ? (
                       <div className="flex items-center gap-2 rounded-lg p-1" onClick={(e) => e.stopPropagation()} style={{ background: "rgba(255,255,255,0.07)" }}>
@@ -498,7 +626,7 @@ export default function PublicMenu() {
               </span>
             </div>
             <span>Mon Panier</span>
-            <span className="text-sm opacity-80">({cartCount})</span>
+            <span className="text-sm opacity-80">· {cartTotal.toLocaleString()} F</span>
           </motion.button>
         )}
       </AnimatePresence>
@@ -535,7 +663,6 @@ export default function PublicMenu() {
               className="w-full max-w-lg overflow-hidden rounded-2xl shadow-2xl"
               style={{ background: "#221508", border: "1px solid rgba(255,255,255,0.08)" }}
             >
-              {/* IMAGE */}
               <div className="relative h-72 overflow-hidden">
                 {selectedProduct.image ? (
                   <img src={selectedProduct.image} alt={selectedProduct.name} className="h-full w-full object-cover" />
@@ -551,18 +678,16 @@ export default function PublicMenu() {
                 <div className="absolute bottom-0 left-0 right-0 px-6 pb-5">
                   <div className="flex items-end justify-between">
                     <h2 className="text-2xl font-bold text-white leading-tight">{selectedProduct.name}</h2>
-                    <p className="text-amber-500 font-bold text-xl ml-4 flex-shrink-0">{selectedProduct.price.toLocaleString()} FCFA</p>
+                    <p className="text-amber-500 font-bold text-xl ml-4 shrink-0">{selectedProduct.price.toLocaleString()} FCFA</p>
                   </div>
                 </div>
               </div>
 
-              {/* BODY */}
               <div className="p-6">
                 {selectedProduct.description && (
                   <p className="text-stone-400 text-sm leading-relaxed mb-6">{selectedProduct.description}</p>
                 )}
 
-                {/* QTY + ADD */}
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-3 rounded-xl p-1.5" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
                     <button onClick={() => setProductQty(Math.max(1, productQty - 1))} className="flex h-9 w-9 items-center justify-center rounded-lg text-white" style={{ background: "rgba(255,255,255,0.08)" }}>
@@ -627,7 +752,7 @@ export default function PublicMenu() {
               <div className="space-y-3">
                 {cart.map((item) => (
                   <div key={item.id} className="flex items-center gap-3 rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                    <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg" style={{ background: "#2a1a08" }}>
+                    <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg" style={{ background: "#2a1a08" }}>
                       {item.image ? (
                         <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
                       ) : (
@@ -640,7 +765,7 @@ export default function PublicMenu() {
                       <h3 className="font-bold text-white text-sm truncate">{item.name}</h3>
                       <p className="mt-0.5 text-sm font-bold text-amber-500">{(item.price * item.quantity).toLocaleString()} FCFA</p>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <button onClick={() => removeFromCart(item.id)} className="flex h-8 w-8 items-center justify-center rounded-lg text-white" style={{ background: "rgba(255,255,255,0.08)" }}>
                         <Minus size={13} />
                       </button>
@@ -688,10 +813,7 @@ export default function PublicMenu() {
 
 /* ── SERVICE MODAL COMPONENT ── */
 function ServiceModalComponent({
-  open,
-  loading,
-  onClose,
-  onCall,
+  open, loading, onClose, onCall,
 }: {
   open: boolean;
   loading: boolean;
@@ -706,7 +828,7 @@ function ServiceModalComponent({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 z-[60] flex items-end justify-center"
+          className="fixed inset-0 z-60 flex items-end justify-center"
           style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)" }}
         >
           <motion.div

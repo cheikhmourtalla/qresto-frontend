@@ -614,7 +614,7 @@ export default function Dashboard() {
 
                       {/* GLOW */}
                       <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover:opacity-100">
-                        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-transparent" />
+                        <div className="absolute inset-0 bg-linear-to-br from-amber-500/5 via-transparent to-transparent" />
                       </div>
                     </div>
                   )
@@ -625,7 +625,7 @@ export default function Dashboard() {
         )}
 
         {/* HERO */}
-        <div className="mt-12 overflow-hidden rounded-3xl bg-gradient-to-br from-amber-600 to-orange-700 p-1">
+        <div className="mt-12 overflow-hidden rounded-3xl bg-linear-to-br from-amber-600 to-orange-700 p-1">
           <div className="flex flex-col items-center justify-between gap-8 rounded-[calc(1.5rem-1px)] bg-[#020617]/90 p-8 backdrop-blur-md md:flex-row md:p-12">
             <div className="max-w-2xl text-center md:text-left">
               <h2 className="text-4xl font-black leading-tight text-white">

@@ -1,9 +1,6 @@
 import { useState } from "react";
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
-import {
-  LayoutDashboard, Tags, Utensils, LogOut,
-  QrCode, Store, Settings, User, Menu, ShoppingBag,
-} from "lucide-react";
+import { LayoutDashboard, Tags, Utensils, LogOut, QrCode, Store, Settings, User, Menu, ShoppingBag } from "lucide-react";
 
 export default function DashboardLayout() {
   const navigate = useNavigate();
@@ -30,7 +27,7 @@ export default function DashboardLayout() {
   const SidebarContent = () => (
     <>
       <div className="mb-10 flex items-center gap-3 px-2">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/20">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/20">
           <span className="text-xl font-black text-white">Q</span>
         </div>
         <h1 className="text-xl font-black tracking-tighter text-white uppercase">
