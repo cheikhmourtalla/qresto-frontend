@@ -436,23 +436,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* HERO */}
-        <div className="mt-12 overflow-hidden rounded-3xl bg-linear-to-br from-amber-600 to-orange-700 p-1">
-          <div className="flex flex-col items-center justify-between gap-8 rounded-[calc(1.5rem-1px)] bg-[#020617]/90 p-8 backdrop-blur-md md:flex-row md:p-12">
-            <div className="max-w-2xl text-center md:text-left">
-              <h2 className="text-4xl font-black leading-tight text-white">
-                {user.role === "SUPER_ADMIN"
-                  ? "Gestion du réseau d'établissements"
-                  : "Optimisez l'expérience de vos clients."}
-              </h2>
-              <p className="mt-4 text-lg text-slate-400">
-                {user.role === "SUPER_ADMIN"
-                  ? "Suivez les performances globales et gérez l'ensemble des restaurants."
-                  : "Recevez les commandes, les appels serveur et les demandes d'addition directement depuis les tables."}
-              </p>
-            </div>
-          </div>
-        </div>
+       
 
       </div>
     </div>
